@@ -3,11 +3,10 @@ const path = require('path');
 const fs = require('fs');
 
 let isRunning = false;
-let worker = null;
 
 /**
- * Start a js file
- * @param {String} file `path/to/file`
+ * Start a JS file
+ * @param {String} file Path to the file
  */
 function start(file) {
     if (isRunning) return;
@@ -17,50 +16,45 @@ function start(file) {
         exec: path.join(__dirname, file),
         args: args.slice(1),
     });
-    worker = cluster.fork();
+    let worker = cluster.fork();
     worker.on('message', (data) => {
         console.log('[RECEIVED]', data);
-        if (data === 'reset') {
-            worker.kill();
-            isRunning = false;
-            start(file);
-        }
-        if (data === 'uptime') {
-            worker.send(process.uptime());
-        }
-        if (data === 'reload') {
-            reload(file);
+        switch (data) {
+            case 'reload':
+                console.log('Reloading...');
+                reload(file);
+                break;
+            case 'uptime':
+                worker.send(process.uptime());
+                break;
         }
     });
     worker.on('exit', (code) => {
         isRunning = false;
-        console.error('Worker exited with code:', code);
-        if (code !== 0) {
-            fs.watchFile(args[0], () => {
-                fs.unwatchFile(args[0]);
-                start(file);
-            });
-        }
+        console.error('Exited with code:', code);
+        if (code === 0) return;
+        fs.watchFile(args[0], () => {
+            fs.unwatchFile(args[0]);
+            start(file);
+        });
     });
 }
 
 /**
- * Reload the worker process
- * @param {String} file `path/to/file`
+ * Reload the app without resetting other commands.
+ * @param {String} file Path to the file
  */
 function reload(file) {
-    console.log('Reloading worker...');
+    if (!isRunning) return start(file);
+    const oldWorker = Object.values(cluster.workers)[0];
     const newWorker = cluster.fork();
     newWorker.on('listening', () => {
-        console.log('New worker is ready');
-        if (worker) {
-            worker.kill();
-        }
-        worker = newWorker;
+        oldWorker.kill();
+        console.log('Reload complete.');
     });
     newWorker.on('exit', (code) => {
         if (code !== 0) {
-            console.error('New worker failed to start, exiting with code:', code);
+            console.error('New worker failed, keeping the old one running.');
         }
     });
 }
