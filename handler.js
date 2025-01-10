@@ -20,20 +20,16 @@ function start(file) {
     worker = cluster.fork();
     worker.on('message', (data) => {
         console.log('[RECEIVED]', data);
-        switch (data) {
-            case 'reset':
-                worker.send('resetting');
-                worker.once('exit', () => {
-                    start(file);
-                });
-                break;
-            case 'reload':
-                //console.log('Received reload command');
-                worker.send('reloading');
-                worker.once('exit', () => {
-                    start(file);
-                });
-                break;
+        if (data === 'reset') {
+            worker.kill();
+            isRunning = false;
+            start(file);
+        }
+        if (data === 'uptime') {
+            worker.send(process.uptime());
+        }
+        if (data === 'reload') {
+            reload(file);
         }
     });
     worker.on('exit', (code) => {
@@ -44,6 +40,27 @@ function start(file) {
                 fs.unwatchFile(args[0]);
                 start(file);
             });
+        }
+    });
+}
+
+/**
+ * Reload the worker process
+ * @param {String} file `path/to/file`
+ */
+function reload(file) {
+    console.log('Reloading worker...');
+    const newWorker = cluster.fork();
+    newWorker.on('listening', () => {
+        console.log('New worker is ready');
+        if (worker) {
+            worker.kill();
+        }
+        worker = newWorker;
+    });
+    newWorker.on('exit', (code) => {
+        if (code !== 0) {
+            console.error('New worker failed to start, exiting with code:', code);
         }
     });
 }
