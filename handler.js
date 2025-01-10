@@ -1,44 +1,50 @@
-const cluster = require('cluster')
-const path = require('path')
-const fs = require('fs')
-//const Readline = require('readline')
+const cluster = require('cluster');
+const path = require('path');
+const fs = require('fs');
 
-var isRunning = false
+let isRunning = false;
+let worker = null;
+
 /**
-* Start a js file
-* @param {String} file `path/to/file`
-*/
+ * Start a js file
+ * @param {String} file `path/to/file`
+ */
 function start(file) {
-    if (isRunning) return
-    isRunning = true
-    let args = [path.join(__dirname, file),
-        ...process.argv.slice(2)]
+    if (isRunning) return;
+    isRunning = true;
+    let args = [path.join(__dirname, file), ...process.argv.slice(2)];
     cluster.setupMaster({
         exec: path.join(__dirname, file),
         args: args.slice(1),
-    })
-    let p = cluster.fork();
-    p.on('message', data => {
-        console.log('[RECEIVED]', data)
+    });
+    worker = cluster.fork();
+    worker.on('message', (data) => {
+        console.log('[RECEIVED]', data);
         switch (data) {
             case 'reset':
-                p.kill()
-                isRunning = false
-                start.apply(this, arguments)
-                break
-            case 'uptime':
-                p.send(process.uptime())
-                break
+                worker.send('resetting');
+                worker.once('exit', () => {
+                    start(file);
+                });
+                break;
+            case 'reload':
+                //console.log('Received reload command');
+                worker.send('reloading');
+                worker.once('exit', () => {
+                    start(file);
+                });
+                break;
         }
     });
-    p.on('exit', code => {
-        isRunning = false
-        console.error('Exited with code:', code)
-        if (code === 0) return
-        fs.watchFile(args[0], () => {
-            fs.unwatchFile(args[0])
-            start(file)
-        });
+    worker.on('exit', (code) => {
+        isRunning = false;
+        console.error('Worker exited with code:', code);
+        if (code !== 0) {
+            fs.watchFile(args[0], () => {
+                fs.unwatchFile(args[0]);
+                start(file);
+            });
+        }
     });
 }
 
