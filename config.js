@@ -66,6 +66,8 @@ module.exports = {
     },
     Port: process.env.Port || "8080",
     HEART_RATE: process.env.HEART_RATE || 15,
+    BASE_API_URL: process.env.BASE_API_URL || 'https://pikabotzapi.vercel.app',
+    BASE_API_KEY: process.env.BASE_API_KEY || 'anya-md',
 }
 
 global.connectionMessageSent = false;
