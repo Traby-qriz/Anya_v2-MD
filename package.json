@@ -33,7 +33,7 @@
   "author": "Pika",
   "license": "GPL-3.0",
   "dependencies": {
-    "@queenanya/baileys": "^7.4.10",
+    "@queenanya/baileys": "latest",
     "@queenanya/invite": "latest",
     "@bochilteam/scraper": "latest",
     "@distube/ytdl-core": "^4.15.8",
